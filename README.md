@@ -49,5 +49,32 @@ Markets such as JPY, HeatingOil, EuroStoxx,Bunds and GBP uses Excel time in the 
 Agent Orders are used as Baseline strategy for benchmarking (Strtegy 1), its quantity and price are preserved as limit order submission to evaluate on fill rate, slippage and pnl performance, which is benchmarked against EPDF strategy.
 
 ## Methodology Outline
+The algorithm consists of five main stages: **Data Cleaning**,**Rolling EPDF Constructions**, **Order Execution Simulation**, **Hyper-parameters Tuning** and **Final Evaluation**
+
+### 1.Data Cleaning
+
+- **Trading date alignment**
+  CME-traded futures (Nasdaq, JPY, GBP, Gold, Heating Oil): trading day runs from 18:00 previous day to 17:00 current day (NY time). Timestamps are shifted back by 18 hours before date extraction.  
+  Eurex-traded futures (EuroStoxx, Bunds): active session 01:00–22:00 CET; timestamps shifted back by 1 hour.
+
+- **Stable start date detection**
+  To identify a stable start of the contract after which it is considered active and liquid, a contract-specific full-session benchmark is computed as the 95th percentile of daily observed trading minutes over the sample period. 
+  A contract is considered to have entered a stable trading period once its daily
+observed minutes reach at least 80% of this benchmark for 10 consecutive trading
+days.
+
+- **Coverage filtering**
+  Define exepected_minutes of a trading day as he 95th percentile of observed daily minutes. Days with coverage ratio='observed_minutes/expected_minutes'>0.9 are retained, rest are considered as missing records.
+  
+- **Roll date identification**
+  Adjacent contracts are compared over their overlapping period. The roll date is the earliest day where the next contract's volume exceeds the current contract's volume for 2 consecutive trading days to ensure persistent liquidity shift.
+  
+- **Tick size**
+  For each contract, we aggregate all observed open, high, low, and close prices,
+compute the differences between sorted unique price levels, and identify the
+smallest price increment that explains the vast majority of observed price changes.
+
+###2.EPDF Construction
+
 
 ## Structure and Application of the notebook
