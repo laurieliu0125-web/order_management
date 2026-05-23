@@ -54,22 +54,27 @@ The algorithm consists of five main stages: **Data Cleaning**,**Rolling EPDF Con
 ### 1.Data Cleaning
 
 - **Trading date alignment**
+  
   CME-traded futures (Nasdaq, JPY, GBP, Gold, Heating Oil): trading day runs from 18:00 previous day to 17:00 current day (NY time). Timestamps are shifted back by 18 hours before date extraction.  
   Eurex-traded futures (EuroStoxx, Bunds): active session 01:00–22:00 CET; timestamps shifted back by 1 hour.
 
 - **Stable start date detection**
+  
   To identify a stable start of the contract after which it is considered active and liquid, a contract-specific full-session benchmark is computed as the 95th percentile of daily observed trading minutes over the sample period. 
   A contract is considered to have entered a stable trading period once its daily
 observed minutes reach at least 80% of this benchmark for 10 consecutive trading
 days.
 
 - **Coverage filtering**
+  
   Define exepected_minutes of a trading day as he 95th percentile of observed daily minutes. Days with coverage ratio='observed_minutes/expected_minutes'>0.9 are retained, rest are considered as missing records.
   
 - **Roll date identification**
+  
   Adjacent contracts are compared over their overlapping period. The roll date is the earliest day where the next contract's volume exceeds the current contract's volume for 2 consecutive trading days to ensure persistent liquidity shift.
   
 - **Tick size**
+  
   For each contract, we aggregate all observed open, high, low, and close prices,
 compute the differences between sorted unique price levels, and identify the
 smallest price increment that explains the vast majority of observed price changes.
