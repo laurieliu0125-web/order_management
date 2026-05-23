@@ -58,7 +58,7 @@ Markets such as JPY, HeatingOil, EuroStoxx,Bunds and GBP uses Excel time in the 
 Agent Orders are used as Baseline strategy for benchmarking (Strtegy 1), its quantity and price are preserved as limit order submission to evaluate on fill rate, slippage and pnl performance, which is benchmarked against EPDF strategy.
 
 ## Methodology Outline
-The algorithm consists of five main stages: **Data Cleaning**,**Rolling EPDF Constructions**, **Order Execution Simulation**, **Hyper-parameters Tuning** and **Final Evaluation**
+The algorithm consists of four main stages: **Data Cleaning**,**Rolling EPDF Constructions**, **Order Execution Simulation**, and **Hyper-parameters Tuning**.
 
 ### 0.Definition of key parameters
 
@@ -185,6 +185,11 @@ Once all hyper-parameters are optimized:
 - **Notes on implementation**
   The optimal parameters values are hard coded for retrieval, the codes are marked down for reference.
 
-### 5. Final Evaluation
-
 ## Structure and Application of the notebook
+
+### 1. User Inputs
+### 2. Market data preparation
+### 3. Order records preparation
+### 4. (Marked down) Hyper-parameter tuning
+### 5. Run_analysis function
+### 6. Outputs
