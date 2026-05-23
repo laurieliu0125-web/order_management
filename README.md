@@ -95,15 +95,14 @@ The algorithm move through time-sorted agent order record, and process all **com
 Contracts are merged starting from its stable start date and rolled over timely. The continuous contract for the specific market is split into fixed-length intervals of length `τ` . On 'Open' at time tj, the processing of past interval [tj-τ,tj) is carried out. Three metrics are computed for each interval:
   - `Volume`: Sum of volume
   - `Volatility`: Represented by range movement, High-Low over the interval
-    `ΔPrice`: Next interval's Open - current interval's first Open
+  - `ΔPrice`: Next interval's Open - current interval's first Open
   
 - **State classification**
   For each metric, exponential weighted moving average and variance (`EWMA` and `EWMV`) are updated per interval with half‑life `m_period` (converted to decay factor λ).
   Each metric is discretied into 2-4 states based on actual interval value's deviation from EWMA, scaled by EWMV:
-  -state number=2: cutoff being 0, state=0 if metric <= EWMA, state=1 otherwise.
-  -state number=3: cutoff being [-0.5,0.5]. state=0 if metric ≤ EWMA−0.5EWMV,
-   state=1 if between EWMA − 0.5EWMV and EWMA + 0.5EWMV , state=2 otherwise.
-  -state number=4: cutoff being [-0.7,0,0.7].
+  - state number=2: cutoff being 0, state=0 if metric <= EWMA, state=1 otherwise.
+  - state number=3: cutoff being [-0.5,0.5]. state=0 if metric ≤ EWMA−0.5EWMV, state=1 if between EWMA − 0.5EWMV and EWMA + 0.5EWMV , state=2 otherwise.
+  - state number=4: cutoff being [-0.7,0,0.7].
   The combined state classification is indexed and stored in a tuple `(m,n,k)`.
   
 - **Conditional probability arrays**
