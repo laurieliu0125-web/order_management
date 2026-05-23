@@ -1,13 +1,14 @@
 # Term Project 2: Volatility-Volume-based Order Management Utilizing Statistical and Rule-based Techniques
 
 ## Overview
-This repository implements order slicing optimization on slippage cost for agent orders across 7 futures markets. Given 1-min OHLC data, through rolling state classification with interval volume, volatility and price change parameters, as well as emprical probabiltiy density function (EPDF) construction on price movements, the algorithm sets target price to place limit order, subject to fill rate and profit trade-off. The project compare performance of three strategies: the original agent orders as baseline, agent order with resubmission, and the EPDF strategy with optimized hyper-parameters on the target initial filled probabiltiy (p_initial), order live period (tau_fill), maximum allowed resubmission (max_resubmits) and half-life for EWMA and EWMV computation (m_peroids).
-Other parameters including the holding period (τ), the number of states for volume, volatility and price change classifications (M,N,K) prompt user input.
+This repository implements order slicing optimization on slippage cost for agent orders across 7 futures markets. Given 1-min OHLC data, through rolling state classification with interval volume, volatility and price change parameters, as well as emprical probabiltiy density function (EPDF) construction on price movements, the algorithm sets target price to place limit order, subject to fill rate and profit trade-off. The project compare performance of three strategies: the original agent orders as baseline, agent order with resubmission, and the EPDF strategy with optimized hyper-parameters on the target initial filled probabiltiy `p_initial`, order live period `tau_fill`, maximum allowed resubmission `max_resubmits` and half-life for `EWMA` and `EWMV` computation `m_peroids`.
+Other parameters including the holding period `τ`, the number of states for `volume`, `volatility` and `price change` classifications `(M,N,K)` prompt user input.
 
 ## Data Requirements
 Market OHLC and agent order data should be organized in the following structure with exact naming format, the program maps market folder name to corresponding agent order file's market identifier as the market variable.
 The notebook should be placed under the same root directory as the order management folder.
 ### Data Directory Structure
+```text
 order_management/
 ├── data/
 │   ├── EuroStoxx/
@@ -24,10 +25,14 @@ order_management/
 │   │   ├── RXU25.csv
 │   │   └── RXZ25.csv
 │   ├── Gold/
+│   │   ├── ...
 │   ├── HeatingOil/
+│   │   ├── ...
 │   ├── JPY/
+│   │   ├── ...
 │   └── Nasdaq/
-
+│   │   ├── ...
+```
 ### Contract files
 Each contract file contains **1‑minute OHLCV** data with the following columns:
 
@@ -67,9 +72,7 @@ The algorithm consists of five main stages: **Data Cleaning**,**Rolling EPDF Con
 - **Stable start date detection**
   
   To identify a stable start of the contract after which it is considered active and liquid, a contract-specific full-session benchmark is computed as the 95th percentile of daily observed trading minutes over the sample period. 
-  A contract is considered to have entered a stable trading period once its daily
-observed minutes reach at least 80% of this benchmark for 10 consecutive trading
-days.
+  A contract is considered to have entered a stable trading period once its daily observed minutes reach at least 80% of this benchmark for 10 consecutive trading days.
 
 - **Coverage filtering**
   
@@ -81,9 +84,7 @@ days.
   
 - **Tick size**
   
-  For each contract, we aggregate all observed open, high, low, and close prices,
-compute the differences between sorted unique price levels, and identify the
-smallest price increment that explains the vast majority of observed price changes.
+  For each contract, we aggregate all observed open, high, low, and close prices, compute the differences between sorted unique price levels, and identify the smallest price increment that explains the vast majority of observed price changes.
 
 ### 2.EPDF Construction
 
@@ -92,38 +93,38 @@ The algorithm move through time-sorted agent order record, and process all **com
 
 - **Interval slicing**
 
-Contracts are merged starting from its stable start date and rolled over timely. The continuous contract for the specific market is split into fixed-length intervals of length `τ` . On 'Open' at time tj, the processing of past interval [tj-τ,tj) is carried out. Three metrics are computed for each interval:
+  Contracts are merged starting from its stable start date and rolled over timely. The continuous contract for the specific market is split into fixed-length intervals of length `τ` . On 'Open' at time tj, the processing of past interval [tj-τ,tj) is carried out. Three metrics are computed for each interval:
   - `Volume`: Sum of volume
   - `Volatility`: Represented by range movement, High-Low over the interval
   - `ΔPrice`: Next interval's Open - current interval's first Open
   
 - **State classification**
-  For each metric, exponential weighted moving average and variance (`EWMA` and `EWMV`) are updated per interval with half‑life `m_period` (converted to decay factor λ).
-  Each metric is discretied into 2-4 states based on actual interval value's deviation from EWMA, scaled by EWMV:
-  - state number=2: cutoff being 0, state=0 if metric <= EWMA, state=1 otherwise.
-  - state number=3: cutoff being [-0.5,0.5]. state=0 if metric ≤ EWMA−0.5EWMV, state=1 if between EWMA − 0.5EWMV and EWMA + 0.5EWMV , state=2 otherwise.
+  For each metric, exponential weighted moving average and variance (`EWMA` and `EWMV`) are updated per interval with half‑life `m_period` (converted to decay factor `λ`).
+  Each metric is discretied into 2-4 states based on actual interval value's deviation from `EWMA`, scaled by `EWMV`:
+  - state number=2: cutoff being 0, state=0 if metric <= `EWMA`, state=1 otherwise.
+  - state number=3: cutoff being [-0.5,0.5]. state=0 if metric ≤ EWMA−0.5EWMV, state=1 if between `EWMA` − 0.5`EWMV` and `EWMA` + 0.5`EWMV` , state=2 otherwise.
   - state number=4: cutoff being [-0.7,0,0.7].
   The combined state classification is indexed and stored in a tuple `(m,n,k)`.
   
 - **Conditional probability arrays**
 
-For each state `(m,n,k)`, we store empirical histograms of:
+  For each state `(m,n,k)`, we store empirical histograms of:
   - `Range` (total price movement = high – low over next τ minutes)  
   - `RangeUp` (upward movement = max price – open)  
   - `RangeDown` (downward movement = open – min price, stored as absolute value)
-The counts of Range=l are divided by total counts in the state to constructe the EPDF.
+The counts of `Range`=l are divided by total counts in the state to constructe the EPDF.
 
 ### 3. Order Execution Simulation
 
 - **Setting target price for limit order**
   
-Given a new order from the agent record at time t:
+  Given a new order from the agent record at time t:
   - Determine the current state `(m,n,k)` using only historical data up to `t`.
   - Reference price `O_t` = current market open.
   - For a **buy** order, we seek the smallest price offset `d` such that  
     `P(RangeDown ≥ d | state) ≥ p_initial`.  The limit price = `O_t – d`.  
     For a **sell** order, use `RangeUp` and limit price = `O_t + d`.
-  - `p_initial` ∈ (0,1) controls aggressiveness, larger value indicates closer to market       price thus larger probability of filled.
+  - `p_initial` ∈ (0,1) controls aggressiveness, larger value indicates closer to market price thus larger probability of filled.
     
 - **Resubmission policy**
   
@@ -132,7 +133,8 @@ Given a new order from the agent record at time t:
 - **Evaluation Framework**
 
   Three strategies are compared to isolate the effect of repricing and resubission:
-  | Strategy | Description |
+  
+| Strategy | Description |
 |----------|-------------|
 | **1. Agent baseline** | Original agent price, no resubmission (single check on submission bar). |
 | **2. EPDF repricing + resubmission** | Our method: replace price with EPDF target, allow resubmissions. |
@@ -163,14 +165,14 @@ Optimal hyper-parameters are market specific.
   - `max_resubmits` – maximum attempts (1–6)
   - `m_period` – half‑life for EWMA/EWMV (depends on τ)
 
-To improve the efficiency of the algorithm without introducing look-ahead bias, the parameter selection is based on order execution results on the validation set (0.6/0.2/0.2 train-validation-test split of the full dataset). EPDF constructed on the train set is applied, and with the rolling precomputed state table, state (m,n,k) for the tradable interval could be retrieved.
+To improve the efficiency of the algorithm without introducing look-ahead bias, the parameter selection is based on order execution results on the validation set (0.6/0.2/0.2 train-validation-test split of the full dataset). EPDF constructed on the train set is applied, and with the rolling precomputed state table, state `(m,n,k)` for the tradable interval could be retrieved.
 
-For each candidate parameter, the **validation score** is computed as
+  For each candidate parameter, the **validation score** is computed as
 
-  - PnL= Portfolio value (with initial_cash=0)
+  - PnL= `Portfolio value` (with `initial_cash`=0)
   - ΔPnL = PnL_EPDF – PnL_benchmark
-  - FillShortfall = max(0, α × FillRate_benchmark – FillRate_EPDF)
-  - Score = ΔPnL – λ_penalty × FillShortfall
+  - `FillShortfall` = max(0, `α` × `FillRate_benchmark` – `FillRate_EPDF`)
+  - `mod_score` = ΔPnL – `λ_penalty` × `FillShortfall`
   where `α = 0.8` (EPDF must achieve at least 80% of the benchmark fill rate), and `λ_penalty = 1` (penalty weight for fill‑rate shortfall)
 
 The parameter with teh highest validation score is selected
@@ -178,7 +180,7 @@ The parameter with teh highest validation score is selected
 - **Out of Sample Performance**
 Once all hyper-parameters are optimized:
   - Rebuild EPDF on the **combined training+validation** data
-  - Evaluate order execution performance on the **test set** with the optimal parameters     set.
+  - Evaluate order execution performance on the **test set** with the optimal parameters set.
 
 - **Notes on implementation**
   The optimal parameters values are hard coded for retrieval, the codes are marked down for reference.
