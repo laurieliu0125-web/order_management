@@ -63,7 +63,13 @@ Agent Orders are used as Baseline strategy for benchmarking (Strtegy 1), its qua
 ## Methodology Outline
 The algorithm consists of four main stages: **Data Cleaning**,**Rolling EPDF Constructions**, **Order Execution Simulation**, and **Hyper-parameters Tuning**.
 
-### 0.Definition of key parameters
+### 0.Definition of key inputs
+  - `market`: Select from dropdown, the futures market to trade
+  - `M`:Number of states for `volume` metric, choose between 2 to 4
+  - `N`:Number of states for `volatility` metric, choose between 2 to 4
+  - `K`:Number of states for ``ΔPrice` metric, choose between 2 to 4
+  - `τ`:Select from dropdown between [5,10,15,30,60], Holding period
+
 
 ### 1.Data Cleaning
 
@@ -92,6 +98,7 @@ The algorithm consists of four main stages: **Data Cleaning**,**Rolling EPDF Con
 ### 2.EPDF Construction
 
 The model builds conditional distributions of future price movements using only past information upto the latest full interval to aviod look-ahead bias. State classification, EPDF construction and order processing are carried out in parallel, on rolling basis. 
+
 The algorithm move through time-sorted agent order record, and process all **compelete** interval states and EPDF updates up to the order time, if order is not filled during its lifetime and resubmission is required, it will proceed to the next effective bar time without updating new EPDF and assuming same market state. This approximation is not expected to have much impact on the result, given the large size of EPDF data and short order lifetime within an hour.
 
 - **Interval slicing**
@@ -190,9 +197,9 @@ Once all hyper-parameters are optimized:
 
 ## Structure and Application of the notebook
 
-### 1. User Inputs
-### 2. Market data preparation
-### 3. Order records preparation
-### 4. (Marked down) Hyper-parameter tuning
-### 5. Run_analysis function
-### 6. Outputs
+### 1. Market data preparation
+
+### 2. Order records preparation
+### 3. (Marked down) Hyper-parameter tuning
+### 4. Run_analysis function
+### 5. Outputs
