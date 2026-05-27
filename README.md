@@ -1,6 +1,28 @@
 # Term Project 2: Volatility-Volume-based Order Management Utilizing Statistical and Rule-based Techniques
 
+## Table of Contents
 
+- [Overview](#overview)
+- [Data Requirements](#data-requirements)
+  - [Data Directory Structure](#data-directory-structure)
+  - [Contract files](#contract-files)
+  - [Agent Order files](#agent-order-files)
+- [Methodology Outline](#methodology-outline)
+  - [0. Definition of key inputs](#0definition-of-key-inputs)
+  - [1. Data Cleaning](#1data-cleaning)
+  - [2. EPDF Construction](#2epdf-construction)
+  - [3. Order Execution Simulation](#3-order-execution-simulation)
+  - [4. Hyperparameter Tuning](#4-hyperparameter-tuning)
+- [Structure and Application of the notebook](#structure-and-application-of-the-notebook)
+  - [Block 1. Helper functions for Market data preparation](#block-1-helper-functions-for-market-data-preparation)
+  - [Block 2. EPDF & state classification helper functions](#block-2-epdf--state-classification-helper-functions)
+  - [Block 3. Order records preparation and execution helper functions](#block-3-order-records-preparation-and-execution-helper-functions)
+  - [Block 4. Run_analysis function (Main)](#block-4-run_analysis-function-main)
+  - [Block 5. (Marked down) Hyperparameter tuning analysis](#block-5-marked-down-hyperparameter-tuning-analysis)
+- [Limitations and further improvements](#limitations-and-further-improvements)
+  - [Hyperparameters are dependent on multiple factors](#hyperparameters-are-dependent-on-multiple-factors)
+  - [Challenge of balancing fill rate and pnl when the agent incurs net losses](#challenge-of-balancing-fill-rate-and-pnl-when-the-agent-incurs-net-losses)
+    
 ## Overview
 This algorithm implements order slicing optimization on slippage cost for agent orders across 7 futures markets. Given 1-min OHLC data, through rolling state classification with interval volume, volatility and price change parameters, as well as emprical probabiltiy density function (EPDF) construction on price movements, the algorithm sets target price to place limit order, subject to fill rate and profit trade-off. 
 
@@ -321,7 +343,7 @@ This block includes core functions to prepare agent order record files: load ord
  - `portfolio_value`=`cash`+`market_value`
 
  
-### 4. Run_analysis function (Main)
+### Block 4. Run_analysis function (Main)
 The block first constructs `agent_file_map` which is a dictionary using `market` (folder name) as key, and values containing 'agent_code' and `path`. It then constructs `tick_size_map` from `tick_size_table`, outputing a dictionary with `market` as key and values being respective `tick_size`. With these dictionaries, corresponding datasets could be retrieved following user input value for `market`
 
 The block contains main UI promting user input, and calls the `run_analysis` function. The core logic is executed via `rolling_backtest_with_optimal_params` function, taking hard-coded values of optimal hyperparamters found through Block 5 below. The algorithm outputs EPDF and states related plots, pnl comparison and execution performance metrics across three strategies. 
@@ -361,7 +383,7 @@ The block contains main UI promting user input, and calls the `run_analysis` fun
  - Output: pd.DataFrame (one row per strategy)
 
 
-### 5. (Marked down) Hyperparameter tuning analysis
+### Block 5. (Marked down) Hyperparameter tuning analysis
 
 In this part, we first tune the 4 hyperparameters in one market in the aforementioned order, and check the robustness of this approach by plotting `mod_score` of different value combinations.
 
@@ -407,7 +429,7 @@ This analysis is marked down with results as hard-coded dictionary so that it wi
 | JPY - Japanese Yen                          | 0.90      | 10       | 4             | 2        |
 | Nasdaq                                      | 0.95      | 5        | 4             | 2        |
 
-## Limitations and futher improvements
+## Limitations and further improvements
 
 ### Hyperparameters are dependent on multiple factors
 The optimal hyperparameter values are market‑specific, which is reasonable given that differences in volatility and liquidity across products affect fill rates and slippage. However, tuning was performed with fixed input values for `τ`, `M`, `N`, and `K`. Robustness tests show that many hyperparameter combinations yield very similar mod_score values, particularly for max_resubmits. This may explain why the optimal max_resubmits is large in certain markets.
