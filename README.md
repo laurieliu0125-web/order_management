@@ -11,6 +11,7 @@ Other parameters including the holding period `τ`, the number of states for `vo
 ## Data Requirements
 Market OHLC and agent order data should be organized in the following structure with exact naming format, the program maps market folder name to corresponding agent order file's market identifier as the market variable.
 The notebook should be placed under the same root directory as the order management folder.
+
 ### Data Directory Structure
 ```text
 order_management/
@@ -37,6 +38,7 @@ order_management/
 │   └── Nasdaq/
 │   │   ├── ...
 ```
+
 ### Contract files
 Each contract file contains **1‑minute OHLCV** data with the following columns:
 
@@ -96,6 +98,7 @@ The algorithm consists of four main stages: **Data Cleaning**,**Rolling EPDF Con
   
   For each contract, we aggregate all observed open, high, low, and close prices, compute the differences between sorted unique price levels, and identify the smallest price increment that explains the vast majority of observed price changes.
 
+
 ### 2.EPDF Construction
 
 The model builds conditional distributions of future price movements using only past information upto the latest full interval to aviod look-ahead bias. State classification, EPDF construction and order processing are carried out in parallel, on rolling basis. 
@@ -124,6 +127,7 @@ The algorithm move through time-sorted agent order record, and process all **com
   - `RangeUp` (upward movement = max price – open)  
   - `RangeDown` (downward movement = open – min price, stored as absolute value)
 The counts of `Range`=l are divided by total counts in the state to constructe the EPDF.
+
 
 ### 3. Order Execution Simulation
 
@@ -163,6 +167,7 @@ Evaluation compares the key metrics:
 | **Buy‑side / sell‑side fill rates** | Quantity‑based fill rates separately for buys and sells (identifies asymmetries). |
 | **Average slippage** | Negative for better execution: for buys, slippage below effective open; for sells, above effective open. |
 
+
 ### 4. Hyperparameter Tuning
 
 A grid search is performed on the training/validation split using the **mod_score** metric that balance PnL improvement against a fill-rate penalty.
@@ -195,6 +200,7 @@ Once all hyper-parameters are optimized:
 
 - **Notes on implementation**
   The optimal parameters values are hard coded for retrieval, the codes are marked down for reference.
+
 
 ## Structure and Application of the notebook
 
@@ -236,6 +242,7 @@ This cell reads and cleans raw 1-minute OHLC contract file data for all 7 market
 | `tick_size_map` | `dict` | `Market` → `tick size` (consistent within market). |
 | `merged` | `pd.DataFrame` | Columns include: `plot_time`(localized time), `open`, `high`, `low`, `close`,`volume`,`trading_day`(shifted),`contract` |
 
+
 ### Block 2. EPDF & state classification helper functions
 Core functions that compute interval metrics, update EWMA/EWMV, classify market states, and build/update the empirical probability density functions (EPDF) for price movements. These are used both in the rolling backtest and in hyperparameter tuning.
 
@@ -267,6 +274,7 @@ Core functions that compute interval metrics, update EWMA/EWMV, classify market 
 |:----------:|:------:|-------------|
 | `Range_count`, `RangeUp_count`, `RangeDown_count` | `np.ndarray` | 4-dim array indexed (m,n,k,l) to store counts of specific ticksize movement value for a particular state |
 | `states` | `list[list]` | record states`(m,n,k)` index for each interval|
+
 
 ### Block 3. Order records preparation and execution helper functions
 This block includes core functions to prepare agent order record files: load order files and align timestamps to market trading hours. It also includes functions to execute orders for three strategies with resubmission logic, and process the filled orders record for pnl computation.
@@ -311,6 +319,7 @@ This block includes core functions to prepare agent order record files: load ord
  - `cash`+=`trade_cashflow`
  - `market_value`=`position`*`current_close`
  - `portfolio_value`=`cash`+`market_value`
+
  
 ### 4. Run_analysis function (Main)
 The block first constructs `agent_file_map` which is a dictionary using `market` (folder name) as key, and values containing 'agent_code' and `path`. It then constructs `tick_size_map` from `tick_size_table`, outputing a dictionary with `market` as key and values being respective `tick_size`. With these dictionaries, corresponding datasets could be retrieved following user input value for `market`
@@ -351,6 +360,7 @@ The block contains main UI promting user input, and calls the `run_analysis` fun
  - Logic: Extracts final portfolio value, cumulative PnL, net position, filled quantity for each strategy.
  - Output: pd.DataFrame (one row per strategy)
 
+
 ### 5. (Marked down) Hyperparameter tuning analysis
 
 In this part, we first tune the 4 hyperparameters in one market in the aforementioned order, and check the robustness of this approach by plotting `mod_score` of different value combinations.
@@ -385,7 +395,7 @@ This analysis is marked down with results as hard-coded dictionary so that it wi
 
   For each market, perform market‑specific tuning with `tune_one_market_parameters`, then evaluate the best found parameters on the test set only with `run_one_split_pipeline`
 
--**Results**
+-**Results** (`τ`=30, (`M`,`N`,`K`)=(2,4,3))
 
 | Market                                      | p_initial | tau_fill | max_resubmits | m_period |
 |:---------------------------------------------:|:-----------:|:----------:|:---------------:|:----------:|
@@ -396,8 +406,17 @@ This analysis is marked down with results as hard-coded dictionary so that it wi
 | HeatingOil                                  | 0.50      | 5        | 6             | 6        |
 | JPY - Japanese Yen                          | 0.90      | 10       | 4             | 2        |
 | Nasdaq                                      | 0.95      | 5        | 4             | 2        |
-  
-  
 
+## Limitations and futher improvements
+
+### Hyperparameters are dependent on multiple factors
+The optimal hyperparameter values are market‑specific, which is reasonable given that differences in volatility and liquidity across products affect fill rates and slippage. However, tuning was performed with fixed input values for `τ`, `M`, `N`, and `K`. Robustness tests show that many hyperparameter combinations yield very similar mod_score values, particularly for max_resubmits. This may explain why the optimal max_resubmits is large in certain markets.
+For the decision‑related hyperparameters `p_initial`, `tau_fill`, and `max_resubmits`, a synergistic effect is expected: in less liquid markets, larger `tau_fill` and more `max_resubmits` should be required to achieve lower slippage and higher fill rates. However, products such as Heating Oil achieve the best validation performance with low `p_initial` and `tau_fill`, yet with many resubmissions. This can be explained by the observed high volatility in several periods (e.g., 30‑minute range movements of over 3,000 ticks). Instead of sacrificing PnL by setting conservative limit order prices (high `p_initial`) to increase fill rates, it proves more effective to give each order a short lifetime and resubmit it multiple times with timely updated limit prices.
+Given the complex dynamics of different markets, it is difficult to provide concrete reasoning for why hyperparameters take specific optimal values, and they remain sensitive to user inputs. Our research on this specific set of user‑input values demonstrates that applying the optimal hyperparameters with the EPDF strategy improves slippage and PnL on test sets for six out of seven markets.
   
+### Challenge of balancing fill rate and pnl when the agent incurs net losses
+Agents trading EuroStoxx, German Bunds, and Heating Oil futures are making losses. Therefore, it is difficult to balance losses against fill rates, because increasing the fill rate would likely result in even greater losses. We navigated this by introducing the `mod_score` metric for hyperparameter selection, which depends on both the difference in PnL and the difference in fill rate between the agent with resubmission and the EPDF strategies. Nevertheless, the results remain sensitive to the fact that losses are incurred; the optimal `p_initial` values for these three markets are all low (0.5), and the EPDF strategy achieves a lower first‑attempt fill rate than the original agent.
+
+
+
     
