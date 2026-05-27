@@ -197,7 +197,43 @@ Once all hyper-parameters are optimized:
 
 ## Structure and Application of the notebook
 
-### 1. Market data preparation
+### Block 1. Helper functions for Market data preparation
+This cell reads and cleans raw 1-minute OHLC contract file data for all 7 markets, assigns trading days, detects stable start dates and roll dates of contracts, and merges consecutive contracts into continuous chain.
+
+-**Key functions**
+| Function| Inputs    | Description | Outputs    |
+|---------|-----------|---------|------------------------------------|
+| `build_all_markets_daily` | `etract_dir`=str,`coverage_cutoff`=0.9,`expected_method`='p95'  | Processes all markets by assigning trading dates, localizing time, and filtering only active trading days with sufficient coverage ratio after stable starts |Dataframes: `all_daily_raw`, `all_daily`, `all_daily_clean`, `stable_starts`, `minute_store` |
+| `infer_tick_sizes_from_minute_store`| `minute_store`=pd.DataFrame, `max_decimals`=6, `min_count`=5, `coverage_threshold`=0.95 |  Infer tick size for every market by detecting the the differences between sorted unique price levels, and identify the
+smallest price increment that explains the vast majority of observed price changes|             |`tick_size_table`=pd.DataFrame
+| `build_adjacent_contract_pairs`     | `summary_by_contract` =pd.DataFrame | Determine the rollover dates for adjacent contract pairs, and aggregated across markets into a table| `roll_table`=pd.DataFrame
+| `Merge_Contracts`    |`market`=str, `minute_store`=pd.DataFrame, `roll_table`=pd.DataFrame, `stable_starts`=pd.DataFrame| Merge contracts into continuous chain for a specific market| `m`erged`=pd.DataFrame
+
+-**Other functions** (called inside key functions)
+| Function| Inputs    | Description | Outputs    |
+|---------|-----------|---------|------------------------------------|
+| `assign_trading_day` | `df`,`market`=str  | Conducts timezone localization & Shifts timestamps (CME: back 18h; Eurex:Back 1h). Adds `dt_local` and `trading_day` columns | Modified DataFrame|
+| `add_expected_and_coverage`| `daily`=pd.DataFrame, `expected_method`='p95' |Computes expected minutes and coverage ratio | `daily`=pd.DataFrame (with  `expected_minutes, coverage`|
+| `to_daily_observed`| `df_1m`, `contract`=str|Aggregates 1‑min data to daily observed minutes, volume| `daily`=pd.DataFrame|
+| `find_stable_start`     |`daily` =pd.DataFrame, set of parameters  |Finds first date where observed minutes ≥80% of 95th percentile for 10 consecutive days|`stable_start_date`=pd.DataFrame
+
+-**Plotting functions**
+| Function| Description |
+|---------|-----------|
+| `plot_contract_hourly_heatmap` | Plot hourly activity heatmap by contract with average records per day  |
+| `plot_roll_pair_from_store`| Plots volume around roll date for visual validation.|
+
+-**Key data structures**
+| Variable | Type | Description |
+|----------|------|-------------|
+| `minute_store` | `dict` | Key: `(market, contract)` → DataFrame with `plot_time, open, high, low, close, volume, trading_day` |
+| `all_daily_raw` | `pd.DataFrame` | Daily observed minutes for all contracts (unfiltered). |
+| `all_daily_clean` | `pd.DataFrame` | Daily data after coverage filtering (≥0.9). |
+| `stable_starts` | `pd.DataFrame` | Columns: `market, contract, stable_start_date` |
+| `roll_table` | `pd.DataFrame` | Columns: `market, contract_from, contract_to, roll_date` |
+| `summary_by_contract` | `pd.DataFrame` | Aggregated per‑contract stats: `n_days, expected_minutes, coverage_mean, total_volume, first_date, last_date` |
+| `tick_size_table` | `pd.DataFrame` | Tick size per contract with diagnostics. |
+| `tick_size_map` | `dict` | Market → tick size (consistent within market). |
 
 ### 2. Order records preparation
 ### 3. (Marked down) Hyper-parameter tuning
