@@ -177,7 +177,7 @@ Optimal hyper-parameters are market specific.
 
 To improve the efficiency of the algorithm without introducing look-ahead bias, the parameter selection is based on order execution results on the validation set (0.6/0.2/0.2 train-validation-test split of the full dataset). EPDF constructed on the train set is applied, and with the rolling precomputed state table, state `(m,n,k)` for the tradable interval could be retrieved.
 
-  For each candidate parameter, the **validation score** is computed as
+  For each candidate parameter, the **validation score** is computed comparing the improvement of EPDF strategy from agent with resubmission strategy (benchmark)
 
   - PnL= `Portfolio value` (with `initial_cash`=0)
   - ΔPnL = PnL_EPDF – PnL_benchmark
@@ -272,18 +272,31 @@ This block includes core functions to prepare agent order record files: load ord
 -**Key functions**
 | Function| Inputs    | Description | Outputs    |
 |---------|-----------|---------|------------------------------------|
-| `prepare_order_effective_from_path` | `tau`=int, `merged`=pd.DataFrame, `j`=int (counter), `t_begin_lst`=list, `t_true_end`=pd.Timestamp | for each τ‑minute interval, extract data, computes `volume`,`volatility`,`Δprice`,record the true end of data for the interval  |`interval_data`=pd.DataFrame, `param_lst`=list, `t_begin_lst`=list, `t_true_end`=pd.Timestamp`|
-| `split_market`| `j`=int, `param`= float, `sum_W`=float, `sum_WX`= float, `sum_WSS`=float, `m_period`= int  |Updates exponentially weighted moving average and variance for each metric in each interval |`sum_W`=float, `sum_WX`= float, `ewma`=float, `sum_WSS`=float,`ewmv`=float|
-| `inventory_back_test_from trades`     | `m`,`n`,`k`=int, `Range_count`, `RangeUp_count`, `RangeDown_count`= np.ndarray, `interval_data`= pd.DataFrame, `tick_size`=float| Updates increments the corresponding EPDF count arrays for the given interval. |Updated count arrays|
-| `compare_strategy_pnl` | `tau`=int, `merged`=pd.DataFrame, `j`=int (counter), `t_begin_lst`=list, `t_true_end`=pd.Timestamp | for each τ‑minute interval, extract data, computes `volume`,`volatility`,`Δprice`,record the true end of data for the interval  |`interval_data`=pd.DataFrame, `param_lst`=list, `t_begin_lst`=list, `t_true_end`=pd.Timestamp`|
-| `summarize_our_execution`| `j`=int, `param`= float, `sum_W`=float, `sum_WX`= float, `sum_WSS`=float, `m_period`= int  |Updates exponentially weighted moving average and variance for each metric in each interval |`sum_W`=float, `sum_WX`= float, `ewma`=float, `sum_WSS`=float,`ewmv`=float|
-| `summarize_agent_execution`| `df_ewma`= pd.DataFrame, `df_ewmv`=pd.DataFrame, `param_lst`= list, `state_threshold`=pd.DataFrame|Classifies each metric into a state benchmarking against `state_threshold` cutoffs|integers： `m`,`n`,`k`|
+| `prepare_order_effective_from_path` | `path`=str, `merged`=pd.DataFrame| Loads and cleans agent order file with `Agent_Order_Cleaning` then aligns each order to the first market bar with `plot_time >= order.dt_local`  |`df_orders`=pd.DataFrame (with "effective_bar_time" column)|
+| `split_market`| `df_order`=pd.DataFrame, `train_ratio`=0.6, `valid_ratio`= 0.2  |For grid search for hyperparemeters values part, split the orders chronologically into train/validation/ test sets|`train_orders`,`val_orders`, `test_orders`|
+| `inventory_backtest_from_trades`     | `df_trade`=pd.DataFrame (filled trades), `market_sorted`= pd.DataFrame,`initial_cash`= 0.0| For each strategy, from the trade_table obtained from `to_trade_table` function, it conducts bar-level backtest by updating cash,position, and portfolio value.  |`df_bar`=pd.DataFrame|
+| `summarize_our_execution`| `df_exec`=pd.DataFrame (execution record with all order submission)|Computes execution statistics for 3 strategies (fill rates, quote distance, slippage, attempts per order) |`summary`= pd.DataFrame
+
 
 -**Other functions** (called inside the key functions)
 | Function| Inputs    | Description | Outputs    |
 |---------|-----------|---------|------------------------------------|
-| `to_trade_table` | `state_count_lst`: list[int]  | Returns cutoff thresholds relative to EWMA for different number of states|`state_threshold`=pd.DataFrame|
-| `inventory_backtest_per_order`|  `merged`=pd.DataFrame, `tick_size`= float |To determin the size of the 4th dimension (storing ticksize movement) for count arrays, regroup the data by 30mins and record the maximum movement with some buffer to be the size (especially useful for `HeatingOil` which have wild movements | `L`=int|
-### 3. (Marked down) Hyper-parameter tuning
+| `is_order_file` | `path`=str  | Checks if filename contains `"AIAgent"` and extracts market name|`market`=str or `None`, `df_orig_order`=pd.DataFrame or `None`|
+| `Agent_Order_Cleaning`|`path`=str |Reads raw order CSV, converts Excel datetime to proper timestamp, localises timezone, returns cleaned DataFrame | `df_order`=pd.DataFrame (adding columns "dt_local", "price", "order")|
+| `to_trade_table` | `df_exec`= pd.DataFrame (execution record with all order submission) | Filters filled attempts, renames columns to "dt_local", "price", "action"| `df_trade`=pd.DataFrame (filled trades)|
+| `build_strategy_data` | pd.Dataframes: df_bar, df_trades (for each one of three strategies)| composing a dictionary labeld by strategy name as input for plotting function| `strategy_data`=dict|
+
+-**Plotting functions**
+| Function| Description |
+|---------|-----------|
+| `plot_three_strategies` |plots portfolio value changes for three strategies |
+| `plot_strategies_details` |finds the day with maximum filled order volume, plots EPDF order execution details along market price movements for a 3h interval 9am to 12pm |
+
+-**Key data structures**
+| Variable | Type | Description |
+|----------|------|-------------|
+| `Range_count`, `RangeUp_count`, `RangeDown_count` | `np.ndarray` | 4-dim array indexed (m,n,k,l) to store counts of specific ticksize movement value for a particular state |
+| `states` | `list[list]` | record states`(m,n,k)` index for each interval|
+
 ### 4. Run_analysis function
-### 5. Outputs
+### 5. (Marked down) Hyperparameter tuning analysis
