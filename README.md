@@ -2,14 +2,14 @@
 
 
 ## Overview
-This repository implements order slicing optimization on slippage cost for agent orders across 7 futures markets. Given 1-min OHLC data, through rolling state classification with interval volume, volatility and price change parameters, as well as emprical probabiltiy density function (EPDF) construction on price movements, the algorithm sets target price to place limit order, subject to fill rate and profit trade-off. 
+This algorithm implements order slicing optimization on slippage cost for agent orders across 7 futures markets. Given 1-min OHLC data, through rolling state classification with interval volume, volatility and price change parameters, as well as emprical probabiltiy density function (EPDF) construction on price movements, the algorithm sets target price to place limit order, subject to fill rate and profit trade-off. 
 
 The project compare performance of three strategies: the original agent orders as baseline, agent order with resubmission, and the EPDF strategy with optimized hyper-parameters on the target initial filled probabiltiy `p_initial`, order live period `tau_fill`, maximum allowed resubmission `max_resubmits` and half-life for `EWMA` and `EWMV` computation `m_peroids`.
 
 Other parameters including the holding period `τ`, the number of states for `volume`, `volatility` and `price change` classifications `(M,N,K)` prompt user input.
 
 ## Data Requirements
-Market OHLC and agent order data should be organized in the following structure with exact naming format, the program maps market folder name to corresponding agent order file's market identifier as the market variable.
+Market OHLC and agent order data should be organized in the following structure with exact naming format, the program maps agent order file's market identifier (input) to corresponding market folder name (market variable).
 The notebook should be placed under the same root directory as the order management folder.
 
 ### Data Directory Structure
@@ -51,7 +51,7 @@ Each contract file contains **1‑minute OHLCV** data with the following columns
 | `close`    | Close price                        |
 | `volume`   | Trading volume                     |
 
-Markets such as JPY, HeatingOil, EuroStoxx,Bunds and GBP uses Excel time in the datetime section, "load_lm_auto" funtion handles the conversion.
+Markets such as JPY, HeatingOil, EuroStoxx,Bunds and GBP uses Excel time in the datetime section, `load_lm_auto` funtion handles the conversion.
 
 ### Agent Order files
 | Column         | Description                                 |
@@ -267,13 +267,13 @@ Core functions that compute interval metrics, update EWMA/EWMV, classify market 
 |:---------:|-----------|
 | `plot_states` |Plots colored bar to visualize interval state classification  |
 | `plot_EPDF` |Plots conditioanl EPDF distribution for each state  |
-| `plot_param`|  Plots three metrics' movement across intervals with EMWA trend and 1x EWMV band around||
+| `plot_param`|Plots three metrics' movement across intervals with EMWA trend and 1x EWMV band around||
 
 -**Key data structures**
 | Variable | Type | Description |
 |:----------:|:------:|-------------|
 | `Range_count`, `RangeUp_count`, `RangeDown_count` | `np.ndarray` | 4-dim array indexed (m,n,k,l) to store counts of specific ticksize movement value for a particular state |
-| `states` | `list[list]` | record states`(m,n,k)` index for each interval|
+| `states` | `list[list]` | Record states`(m,n,k)` index for each interval|
 
 
 ### Block 3. Order records preparation and execution helper functions
@@ -299,8 +299,8 @@ This block includes core functions to prepare agent order record files: load ord
 -**Plotting functions**
 | Function| Description |
 |:---------:|-----------|
-| `plot_three_strategies` |plots portfolio value changes for three strategies |
-| `plot_strategies_details` |finds the day with maximum filled order volume, plots EPDF order execution details along market price movements for a 3h interval 9am to 12pm |
+| `plot_three_strategies` |Plots portfolio value changes for three strategies |
+| `plot_strategies_details` |Finds the day with maximum filled order volume, plots EPDF order execution details along market price movements for a 3h interval 9am to 12pm |
 
 -**Key data structures**
 | Variable | Type | Description |
@@ -374,8 +374,8 @@ This analysis is marked down with results as hard-coded dictionary so that it wi
 |:---------:|:-----------:|---------|:------------------------------------:|
 | `precompute_state_table` | `merged`=pd.DataFrame,`tau`=int,<br>`state_threshold`=list,`m_period`=float  | Precomputing state table, so that when processing a specific order, we could look up its state from the last full interval's state classification |pd.DataFrame|
 | `build_execution_orders_from_agent`| `df_order`=pd.DataFrame,`merged`=pd.DataFrame,<br>`df_state`,`RangeUp_count`,<br>`RangeDown_count`,`p_initial`,<br>`tick_size`,`tau_fill`,<br>`max_resubmits`,`price_mode`=str|Similar to `process_order` function, processing orders with resubmission logic| `df_exec`=pd.DataFrame|
-|`build_epdf_model_from_merged`|`merged_sub`,`tau`,<br>`state_threshold`,<br>`m_period`,`state_count_lst`,<br>`tick_size` | build epdf from partial merged market data| `df_state_sub`, three `Range_counts` |
-| `evaluate_one_parameter_setting` |`df_order`,`merged`,`df_state`,<br>`RangeUp_count`,`RangeDown_count`,<br>`tick_size`,`tau_fill`,<br>`max_resubmits`,`p_initial`|for a specific hyperparameter, loop over its possible values and run order execution process for agent resubmission and EPDF strategy, comparing performance of `fill_rate`,`avg_slippage_vs_open` and `final_port_value`  | pd.DataFrame|
+|`build_epdf_model_from_merged`|`merged_sub`,`tau`,<br>`state_threshold`,<br>`m_period`,`state_count_lst`,<br>`tick_size` | Build epdf from partial merged market data| `df_state_sub`, three `Range_counts` |
+| `evaluate_one_parameter_setting` |`df_order`,`merged`,`df_state`,<br>`RangeUp_count`,`RangeDown_count`,<br>`tick_size`,`tau_fill`,<br>`max_resubmits`,`p_initial`|For a specific hyperparameter, loop over its possible values and run order execution process for agent resubmission and EPDF strategy, comparing performance of `fill_rate`,`avg_slippage_vs_open` and `final_port_value`  | pd.DataFrame|
 
 -**Key pipelines**
 
