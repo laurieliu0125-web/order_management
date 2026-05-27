@@ -204,10 +204,9 @@ This cell reads and cleans raw 1-minute OHLC contract file data for all 7 market
 | Function| Inputs    | Description | Outputs    |
 |---------|-----------|---------|------------------------------------|
 | `build_all_markets_daily` | `etract_dir`=str,`coverage_cutoff`=0.9,`expected_method`='p95'  | Processes all markets by assigning trading dates, localizing time, and filtering only active trading days with sufficient coverage ratio after stable starts |Dataframes: `all_daily_raw`, `all_daily`, `all_daily_clean`, `stable_starts`, `minute_store` |
-| `infer_tick_sizes_from_minute_store`| `minute_store`=pd.DataFrame, `max_decimals`=6, `min_count`=5, `coverage_threshold`=0.95 |  Infer tick size for every market by detecting the the differences between sorted unique price levels, and identify the
-smallest price increment that explains the vast majority of observed price changes|             |`tick_size_table`=pd.DataFrame
-| `build_adjacent_contract_pairs`     | `summary_by_contract` =pd.DataFrame | Determine the rollover dates for adjacent contract pairs, and aggregated across markets into a table| `roll_table`=pd.DataFrame
-| `Merge_Contracts`    |`market`=str, `minute_store`=pd.DataFrame, `roll_table`=pd.DataFrame, `stable_starts`=pd.DataFrame| Merge contracts into continuous chain for a specific market| `m`erged`=pd.DataFrame
+| `infer_tick_sizes_from_minute_store`| `minute_store`=pd.DataFrame, `max_decimals`=6, `min_count`=5, `coverage_threshold`=0.95 |  Infer tick size for every market by detecting the the differences between sorted unique price levels, and identify the smallest price increment that explains the vast majority of observed price changes|   `tick_size_table`=pd.DataFrame|
+| `build_adjacent_contract_pairs`     | `summary_by_contract` =pd.DataFrame | Determine the rollover dates for adjacent contract pairs, and aggregated across markets into a table| `roll_table`=pd.DataFrame|
+| `Merge_Contracts`    |`market`=str, `minute_store`=pd.DataFrame, `roll_table`=pd.DataFrame, `stable_starts`=pd.DataFrame| Merge contracts into continuous chain for a specific market| `m`erged`=pd.DataFrame|
 
 -**Other functions** (called inside key functions)
 | Function| Inputs    | Description | Outputs    |
@@ -215,7 +214,7 @@ smallest price increment that explains the vast majority of observed price chang
 | `assign_trading_day` | `df`,`market`=str  | Conducts timezone localization & Shifts timestamps (CME: back 18h; Eurex:Back 1h). Adds `dt_local` and `trading_day` columns | Modified DataFrame|
 | `add_expected_and_coverage`| `daily`=pd.DataFrame, `expected_method`='p95' |Computes expected minutes and coverage ratio | `daily`=pd.DataFrame (with  `expected_minutes, coverage`|
 | `to_daily_observed`| `df_1m`, `contract`=str|Aggregates 1‑min data to daily observed minutes, volume| `daily`=pd.DataFrame|
-| `find_stable_start`     |`daily` =pd.DataFrame, set of parameters  |Finds first date where observed minutes ≥80% of 95th percentile for 10 consecutive days|`stable_start_date`=pd.DataFrame
+| `find_stable_start`     |`daily` =pd.DataFrame, set of parameters  |Finds first date where observed minutes ≥80% of 95th percentile for 10 consecutive days|`stable_start_date`=pd.DataFrame|
 
 -**Plotting functions**
 | Function| Description |
@@ -235,7 +234,56 @@ smallest price increment that explains the vast majority of observed price chang
 | `tick_size_table` | `pd.DataFrame` | Tick size per contract with diagnostics. |
 | `tick_size_map` | `dict` | Market → tick size (consistent within market). |
 
-### 2. Order records preparation
+### Block 2. EPDF & state classification helper functions
+Core functions that compute interval metrics, update EWMA/EWMV, classify market states, and build/update the empirical probability density functions (EPDF) for price movements. These are used both in the rolling backtest and in hyperparameter tuning.
+
+-**Key functions**
+| Function| Inputs    | Description | Outputs    |
+|---------|-----------|---------|------------------------------------|
+| `past_interval_para` | `tau`=int, `merged`=pd.DataFrame, `j`=int (counter), `t_begin_lst`=list, `t_true_end`=pd.Timestamp | for each τ‑minute interval, extract data, computes `volume`,`volatility`,`Δprice`,record the true end of data for the interval  |`interval_data`=pd.DataFrame, `param_lst`=list, `t_begin_lst`=list, `t_true_end`=pd.Timestamp`|
+| `EWMA_EWMV`| `j`=int, `param`= float, `sum_W`=float, `sum_WX`= float, `sum_WSS`=float, `m_period`= int  |Updates exponentially weighted moving average and variance for each metric in each interval |`sum_W`=float, `sum_WX`= float, `ewma`=float, `sum_WSS`=float,`ewmv`=float|
+| `class_state`| `df_ewma`= pd.DataFrame, `df_ewmv`=pd.DataFrame, `param_lst`= list, `state_threshold`=pd.DataFrame|Classifies each metric into a state benchmarking against `state_threshold` cutoffs|integers： `m`,`n`,`k`|
+| `update_count`     | `m`,`n`,`k`=int, `Range_count`, `RangeUp_count`, `RangeDown_count`= np.ndarray, `interval_data`= pd.DataFrame, `tick_size`=float| Updates increments the corresponding EPDF count arrays for the given interval. |Updated count arrays|
+| `EPDF`     |`daily` =pd.DataFrame, set of parameters  |Finds first date where observed minutes ≥80% of 95th percentile for 10 consecutive days|`stable_start_date`=pd.DataFrame|
+| `find_order_price`     |`Range_count`, `RangeUp_count`, `RangeDown_count`= np.ndarray,`l`=int,`direction`=int, `m`,`n`,`k`=int|Returns the probability of a specific price movement (in ticks) conditional on the state. |`density`=float|
+
+-**Other functions** (called inside the key functions)
+| Function| Inputs    | Description | Outputs    |
+|---------|-----------|---------|------------------------------------|
+| `threshold_of_state` | `state_count_lst`: list[int]  | Returns cutoff thresholds relative to EWMA for different number of states|`state_threshold`=pd.DataFrame|
+| `find_L`|  `merged`=pd.DataFrame, `tick_size`= float |To determin the size of the 4th dimension (storing ticksize movement) for count arrays, regroup the data by 30mins and record the maximum movement with some buffer to be the size (especially useful for `HeatingOil` which have wild movements | `L`=int|
+
+-**Plotting functions**
+| Function| Description |
+|---------|-----------|
+| `plot_states` |Plots colored bar to visualize interval state classification  |
+| `plot_EPDF` |Plots conditioanl EPDF distribution for each state  |
+| `plot_param`|  Plots three metrics' movement across intervals with EMWA trend and 1x EWMV band around||
+
+-**Key data structures**
+| Variable | Type | Description |
+|----------|------|-------------|
+| `Range_count`, `RangeUp_count`, `RangeDown_count` | `np.ndarray` | 4-dim array indexed (m,n,k,l) to store counts of specific ticksize movement value for a particular state |
+| `states` | `list[list]` | record states`(m,n,k)` index for each interval|
+
+### Block 3. Order records preparation and execution helper functions
+This block includes core functions to prepare agent order record files: load order files and align timestamps to market trading hours. It also includes functions to execute orders for three strategies with resubmission logic, and process the filled orders record for pnl computation.
+
+-**Key functions**
+| Function| Inputs    | Description | Outputs    |
+|---------|-----------|---------|------------------------------------|
+| `prepare_order_effective_from_path` | `tau`=int, `merged`=pd.DataFrame, `j`=int (counter), `t_begin_lst`=list, `t_true_end`=pd.Timestamp | for each τ‑minute interval, extract data, computes `volume`,`volatility`,`Δprice`,record the true end of data for the interval  |`interval_data`=pd.DataFrame, `param_lst`=list, `t_begin_lst`=list, `t_true_end`=pd.Timestamp`|
+| `split_market`| `j`=int, `param`= float, `sum_W`=float, `sum_WX`= float, `sum_WSS`=float, `m_period`= int  |Updates exponentially weighted moving average and variance for each metric in each interval |`sum_W`=float, `sum_WX`= float, `ewma`=float, `sum_WSS`=float,`ewmv`=float|
+| `inventory_back_test_from trades`     | `m`,`n`,`k`=int, `Range_count`, `RangeUp_count`, `RangeDown_count`= np.ndarray, `interval_data`= pd.DataFrame, `tick_size`=float| Updates increments the corresponding EPDF count arrays for the given interval. |Updated count arrays|
+| `compare_strategy_pnl` | `tau`=int, `merged`=pd.DataFrame, `j`=int (counter), `t_begin_lst`=list, `t_true_end`=pd.Timestamp | for each τ‑minute interval, extract data, computes `volume`,`volatility`,`Δprice`,record the true end of data for the interval  |`interval_data`=pd.DataFrame, `param_lst`=list, `t_begin_lst`=list, `t_true_end`=pd.Timestamp`|
+| `summarize_our_execution`| `j`=int, `param`= float, `sum_W`=float, `sum_WX`= float, `sum_WSS`=float, `m_period`= int  |Updates exponentially weighted moving average and variance for each metric in each interval |`sum_W`=float, `sum_WX`= float, `ewma`=float, `sum_WSS`=float,`ewmv`=float|
+| `summarize_agent_execution`| `df_ewma`= pd.DataFrame, `df_ewmv`=pd.DataFrame, `param_lst`= list, `state_threshold`=pd.DataFrame|Classifies each metric into a state benchmarking against `state_threshold` cutoffs|integers： `m`,`n`,`k`|
+
+-**Other functions** (called inside the key functions)
+| Function| Inputs    | Description | Outputs    |
+|---------|-----------|---------|------------------------------------|
+| `to_trade_table` | `state_count_lst`: list[int]  | Returns cutoff thresholds relative to EWMA for different number of states|`state_threshold`=pd.DataFrame|
+| `inventory_backtest_per_order`|  `merged`=pd.DataFrame, `tick_size`= float |To determin the size of the 4th dimension (storing ticksize movement) for count arrays, regroup the data by 30mins and record the maximum movement with some buffer to be the size (especially useful for `HeatingOil` which have wild movements | `L`=int|
 ### 3. (Marked down) Hyper-parameter tuning
 ### 4. Run_analysis function
 ### 5. Outputs
