@@ -206,7 +206,7 @@ This cell reads and cleans raw 1-minute OHLC contract file data for all 7 market
 | `build_all_markets_daily` | `etract_dir`=str,`coverage_cutoff`=0.9,`expected_method`='p95'  | Processes all markets by assigning trading dates, localizing time, and filtering only active trading days with sufficient coverage ratio after stable starts |Dataframes: `all_daily_raw`, `all_daily`, `all_daily_clean`, `stable_starts`, `minute_store` |
 | `infer_tick_sizes_from_minute_store`| `minute_store`=pd.DataFrame, `max_decimals`=6, `min_count`=5, `coverage_threshold`=0.95 |  Infer tick size for every market by detecting the the differences between sorted unique price levels, and identify the smallest price increment that explains the vast majority of observed price changes|   `tick_size_table`=pd.DataFrame|
 | `build_adjacent_contract_pairs`     | `summary_by_contract` =pd.DataFrame | Determine the rollover dates for adjacent contract pairs, and aggregated across markets into a table| `roll_table`=pd.DataFrame|
-| `Merge_Contracts`    |`market`=str, `minute_store`=pd.DataFrame, `roll_table`=pd.DataFrame, `stable_starts`=pd.DataFrame| Merge contracts into continuous chain for a specific market| `m`erged`=pd.DataFrame|
+| `Merge_Contracts`    |`market`=str, `minute_store`=pd.DataFrame, `roll_table`=pd.DataFrame, `stable_starts`=pd.DataFrame| Merge contracts into continuous chain for a specific market| `merged`=pd.DataFrame|
 
 -**Other functions** (called inside key functions)
 | Function| Inputs    | Description | Outputs    |
@@ -225,14 +225,15 @@ This cell reads and cleans raw 1-minute OHLC contract file data for all 7 market
 -**Key data structures**
 | Variable | Type | Description |
 |----------|------|-------------|
-| `minute_store` | `dict` | Key: `(market, contract)` → DataFrame with `plot_time, open, high, low, close, volume, trading_day` |
+| `minute_store` | `dict` | Key: `(market, contract)` → DataFrame with columns:`plot_time`, `open`, `high`, `low`, `close`, `volume`, `trading_day` |
 | `all_daily_raw` | `pd.DataFrame` | Daily observed minutes for all contracts (unfiltered). |
 | `all_daily_clean` | `pd.DataFrame` | Daily data after coverage filtering (≥0.9). |
-| `stable_starts` | `pd.DataFrame` | Columns: `market, contract, stable_start_date` |
-| `roll_table` | `pd.DataFrame` | Columns: `market, contract_from, contract_to, roll_date` |
-| `summary_by_contract` | `pd.DataFrame` | Aggregated per‑contract stats: `n_days, expected_minutes, coverage_mean, total_volume, first_date, last_date` |
+| `stable_starts` | `pd.DataFrame` | Columns: `market`, `contract`, `stable_start_date` |
+| `roll_table` | `pd.DataFrame` | Columns: `market`, `contract_from`, `contract_to`, `roll_date` |
+| `summary_by_contract` | `pd.DataFrame` | Aggregated per‑contract stats: `n_days`, `expected_minutes`, `coverage_mean`, `total_volume`, `first_date`, `last_date` |
 | `tick_size_table` | `pd.DataFrame` | Tick size per contract with diagnostics. |
-| `tick_size_map` | `dict` | Market → tick size (consistent within market). |
+| `tick_size_map` | `dict` | `Market` → `tick size` (consistent within market). |
+| `merged` | `pd.DataFrame` | Columns include: `plot_time`(localized time), `open`, `high`, `low`, `close`,`volume`,`trading_day`(shifted),`contract` |
 
 ### Block 2. EPDF & state classification helper functions
 Core functions that compute interval metrics, update EWMA/EWMV, classify market states, and build/update the empirical probability density functions (EPDF) for price movements. These are used both in the rolling backtest and in hyperparameter tuning.
@@ -295,8 +296,38 @@ This block includes core functions to prepare agent order record files: load ord
 -**Key data structures**
 | Variable | Type | Description |
 |----------|------|-------------|
-| `Range_count`, `RangeUp_count`, `RangeDown_count` | `np.ndarray` | 4-dim array indexed (m,n,k,l) to store counts of specific ticksize movement value for a particular state |
-| `states` | `list[list]` | record states`(m,n,k)` index for each interval|
+| `df_orders` | `pd.DataFrame` | Cleaned orders with added columns: `dt_local`, `price`, `order` (signed), `effective_bar_time`. |
+| `df_exec` | `pd.DataFrame` | Per‑attempt execution records. Columns include: `dt_local`, `order`, `qty`, `attempt_no`, `submission_time`(start time of a particular attempt), `effective_bar_time`(the timestamp of the first market bar after `submission_time`, `effective_open`(`open`orice of the bar), `state_time`, `m`,`n`,`k`, `price`, `live_until`(deadline of current attempt before resubmission), `filled`('True' or 'False', `fill_dt`(Timestamp of the bar where the fill occurred), `fill_price`, `fill_time_min`(minutes taken to fill the order), `attempt_status`(categorical status), `filled_action`(signed quantity filled)|
+| `df_trades` | `pd.DataFrame` |Filled trades only. Columns include: `dt_local`, `price`, `action` |
+| `df_bar` | `pd.DataFrame` |Bar‑level portfolio backtest.Columns include: `plot_time`, `open`, `high`, `low`, `close`, `position`,` holding_pnl`, `trade_cashflow`, `cash`,`market_value`, `portfolio_value` |
+| `summary`(agent_basline/agent_w/_resub/EPDF) | `pd.DataFrame` |One‑row summary of performance with metrics: `original fill rate`, `attempt fill rate`, `buy/sell fill rates`, `avg fill time`, `avg quote distance`, `avg slippage`, `avg attempts per order` |
 
-### 4. Run_analysis function
+-**Notes for computation**
+ For every filled order, updates:
+ `trade_cashflow`-=`action`*`fill_price`
+ `position`+=`action`
+ `cash`+=`trade_cashflow`
+ `market_value`=`position`*`current_close`
+ `portfolio_value`=`cash`+`market_value`
+ 
+### 4. Run_analysis function (Main)
+The block first constructs `agent_file_map` which is a dictionary using `market` (folder name) as key, and values containing 'agent_code' and `path`. It then constructs `tick_size_map` from `tick_size_table`, outputing a dictionary with `market` as key and values being respective `tick_size`. With these dictionaries, corresponding datasets could be retrieved following user input value for `market`
+
+The block contains main UI promting user input, and calls the `run_analysis` function. The core logic is executed via `rolling_backtest_with_optimal_params` function, taking hard-coded values of optimal hyperparamters found through Block 5 below. The algorithm outputs EPDF and states related plots, pnl comparison and execution performance metrics across three strategies. 
+
+-**`Process_order`**
+  -Inputs:`order_row`=np.array, `current_state`=tuple(int), `current_counts`=tuple(np.ndarray), `price_mode`=str, `max_tries`=int (=1 for 'agent_baseline' strategy)
+  -Logic: As the inner function called in `rolling_backtest_with_optimal_params` loops, it simluates one order with resubmission logic. given the current state classification and the most updated `RangeUp_count` and `Rangedown_count` from historical data (all full intervals before 'effective_bar_time' of the current order. Depending on the `price_mode` being 'agent' or 'EPDF', it set limit order at prices same as agent order records or with `find_order_price` function. Within the allowed `max_tries`, it proceeds through bars, each submission active for `tau_fill` minutes, and resubmit with updated limit order price until filled. For each attempt, it updates a row of record in `df_exec` dataframe.
+  -Output:`records`=pd.DataFrame (`df_exec` for a particular order row in agent original record, may containing resubmission)
+  
+-**`rolling_backtest_with_optimal_params`**
+  -Inputs:`df_orders`=pd.DataFrame, `merged`=pd.DataFrame, `tau`=int, `state_threshold`=list, `state_count_lst`=list,`tick_size`=float, `best_params`=list, `initial_cash`=0.0
+  -Logic: It loops through order rows in agent order record, for each order, it process all full intervals before its 'effective_bar_time', handling state classificaiton and EPDF updates, then call the `process_order` function to simulate order execution. No updates of states and EPDF occurs between resubmission of the same order. After processing all orders, it calls  `inventory_backtest_from_trades` for each of the three strategies to generate PnL comparison from `df_exec`
+  -Output: `results`=dictionary {'key'='strategy name', 'value'=[df_bar,df_trades,df_exec]}
+
+-**`compare_strategy_pnl`**
+ - Inputs:`results`=dict, `initial_cash`=0.0
+ - Logic: Extracts final portfolio value, cumulative PnL, net position, filled quantity for each strategy.
+ - Output: pd.DataFrame (one row per strategy)
+
 ### 5. (Marked down) Hyperparameter tuning analysis
