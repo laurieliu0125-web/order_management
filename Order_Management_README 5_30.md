@@ -42,7 +42,7 @@ order_management/
 │   ├── EuroStoxx/
 │   │   ├── AIAgent_EuroStoxx.csv      # agent orders
 │   │   ├── VGH22.csv                  # contract data
-│   │   └── VGM22.csv                  # next contract
+│   │   └── VGM22.csv                  
 │   ├── GBP-British Pound/
 │   │   ├── AIAgent_GBPUSD.csv
 │   │   ├── BPM20.csv
