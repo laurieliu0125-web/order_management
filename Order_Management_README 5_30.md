@@ -351,7 +351,7 @@ This block includes core functions to prepare agent order record files: load ord
 - `portfolio_value` = `cash` + `market_value`
 
  
-### Block 4. Run_analysis function (Main)
+### Block 4. (User Inputs) Run_analysis function (Main)
 The block first constructs `agent_file_map` which is a dictionary using `market` (folder name) as key, and values containing 'agent_code' and `path`. It then constructs `tick_size_map` from `tick_size_table`, outputing a dictionary with `market` as key and values being respective `tick_size`. With these dictionaries, corresponding datasets could be retrieved following user input value for `market`
 
 The block contains main UI promting user input, and calls the `run_analysis` function. The core logic is executed via `rolling_backtest_with_optimal_params` function, taking hard-coded values of optimal hyperparamters found through Block 5 below. The algorithm outputs EPDF and states related plots, pnl comparison and execution performance metrics across three strategies. 
