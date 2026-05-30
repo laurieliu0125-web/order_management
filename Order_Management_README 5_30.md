@@ -1,5 +1,5 @@
-# Term Project 2: Volatility-Volume-based Order Management Utilizing Statistical and Rule-based Techniques
-
+# Term Project 2: Adaptive Limit-Order Management in Futures Markets: A Conditional EPDF-Based Framework with Resubmission and VWAP Slicing
+**By:** Yingli Hu (yh3909), Meiqi Liu (ml5306)
 ## Table of Contents
 
 - [Overview](#overview)
