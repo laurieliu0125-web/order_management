@@ -32,11 +32,12 @@ Other parameters including the holding period `τ`, the number of states for `vo
 
 ## Data Requirements
 Market OHLC and agent order data should be organized in the following structure with exact naming format, the program maps agent order file's market identifier (input) to corresponding market folder name (market variable).
-The notebook should be placed under the same root directory as the order management folder.
+The notebook should be placed inside the order management folder, so that it has the same root directory as the **data** foloder
 
 ### Data Directory Structure
 ```text
 order_management/
+├── Term_Project_2_Order_Management_Algorithm.ipynb
 ├── data/
 │   ├── EuroStoxx/
 │   │   ├── AIAgent_EuroStoxx.csv      # agent orders
@@ -131,7 +132,7 @@ The algorithm move through time-sorted agent order record, and process all **com
 
   Contracts are merged starting from its stable start date and rolled over timely. The continuous contract for the specific market is split into fixed-length intervals of length `τ` . On 'Open' at time tj, the processing of past interval [tj-τ,tj) is carried out. Three metrics are computed for each interval:
   - `Volume`: Sum of volume
-  - `Volatility`: Represented by range movement, High-Low over the interval
+  - `Volatility`: Standard deviation of the interval log return
   - `ΔPrice`: Next interval's Open - current interval's first Open
   
 - **State classification**
